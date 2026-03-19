@@ -9,7 +9,7 @@ function App() {
 					<img src={dpsLogo} className="logo" alt="DPS logo" />
 				</a>
 			</div>
-			<div className="home-card">
+			<div className="home-card w-full">
 				<p>Your solution goes here 😊</p>
 			</div>
 		</>
