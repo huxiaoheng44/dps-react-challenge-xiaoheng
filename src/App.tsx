@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -9,15 +10,24 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { lookupByLocality, lookupByPostalCode } from './lib/openplz';
+import {
+	lookupByLocality,
+	lookupByPostalCode,
+	validateLocalityAndPostalCode,
+} from './lib/openplz';
 
 function App() {
 	const [locality, setLocality] = useState('');
 	const [postalCode, setPostalCode] = useState('');
 	const [postalCodeOptions, setPostalCodeOptions] = useState<string[]>([]);
-	const [ErrorMsg, setErrorMsg] = useState('');
+	const [localityOptions, setLocalityOptions] = useState<string[]>([]);
+	const [errorMsg, setErrorMsg] = useState('');
+	const [validationMsg, setValidationMsg] = useState('');
+	const [isValidPair, setIsValidPair] = useState<boolean | null>(null);
+	const [isResultModalOpen, setIsResultModalOpen] = useState(false);
 
-	const showPostalCodeSelect = postalCodeOptions.length > 0;
+	const showPostalCodeSelect = postalCodeOptions.length > 1;
+	const showLocalitySelect = localityOptions.length > 1;
 
 	useEffect(() => {
 		const trimmedLocality = locality.trim();
@@ -25,6 +35,7 @@ function App() {
 			if (!trimmedLocality) {
 				setPostalCodeOptions([]);
 				setPostalCode('');
+				setLocalityOptions([]);
 				return;
 			}
 
@@ -47,11 +58,44 @@ function App() {
 		};
 	}, [locality]);
 
+	const handleValidatePair = async () => {
+		if (!locality.trim() || !/^\d{5}$/.test(postalCode.trim())) {
+			setIsValidPair(false);
+			setValidationMsg(
+				'Please provide a locality and a valid 5-digit PLZ first.',
+			);
+			setIsResultModalOpen(true);
+			return;
+		}
+
+		try {
+			const isMatch = await validateLocalityAndPostalCode(
+				locality,
+				postalCode,
+			);
+
+			setIsValidPair(isMatch);
+			setValidationMsg(
+				isMatch
+					? 'Locality and postal code match.'
+					: 'Please check whether locality and postal code match.',
+			);
+			setIsResultModalOpen(true);
+		} catch {
+			setIsValidPair(false);
+			setValidationMsg(
+				'Validation request failed. Please check whether locality and postal code match.',
+			);
+			setIsResultModalOpen(true);
+		}
+	};
+
 	useEffect(() => {
 		const trimmedPostalCode = postalCode.trim();
 
 		if (!trimmedPostalCode) {
 			setErrorMsg('');
+			setLocalityOptions([]);
 			return;
 		}
 
@@ -61,6 +105,7 @@ function App() {
 					? 'Please enter a valid 5-digit PLZ.'
 					: '',
 			);
+			setLocalityOptions([]);
 			return;
 		}
 
@@ -68,12 +113,18 @@ function App() {
 		void (async () => {
 			try {
 				const localities = await lookupByPostalCode(trimmedPostalCode);
-				if (localities.length >= 1) {
+				if (localities.length === 1) {
+					setLocalityOptions([]);
+					setLocality(localities[0]);
+				} else if (localities.length > 1) {
+					setLocalityOptions(localities);
 					setLocality(localities[0]);
 				} else if (localities.length === 0) {
+					setLocalityOptions([]);
 					setErrorMsg('No locality found for this PLZ.');
 				}
 			} catch {
+				setLocalityOptions([]);
 				setErrorMsg('Failed to fetch localities for the provided PLZ.');
 			}
 		})();
@@ -93,12 +144,36 @@ function App() {
 
 				<div className="space-y-3">
 					<Label htmlFor="locality">Locality</Label>
-					<Input
-						id="locality"
-						className="h-11 border-input bg-card text-base"
-						value={locality}
-						onChange={(event) => setLocality(event.target.value)}
-					/>
+					{showLocalitySelect ? (
+						<Select value={locality} onValueChange={setLocality}>
+							<SelectTrigger
+								id="locality"
+								className="h-11 w-full border-input bg-card text-base"
+							>
+								<SelectValue placeholder="Select locality" />
+							</SelectTrigger>
+							<SelectContent
+								position="popper"
+								className="z-100! max-h-40! overflow-y-auto bg-white text-black"
+							>
+								{localityOptions.map((option) => (
+									<SelectItem key={option} value={option}>
+										{option}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					) : (
+						<Input
+							id="locality"
+							className="h-11 border-input bg-card text-base"
+							value={locality}
+							onChange={(event) => {
+								setLocality(event.target.value);
+								setLocalityOptions([]);
+							}}
+						/>
+					)}
 				</div>
 
 				<div className="space-y-3">
@@ -142,19 +217,47 @@ function App() {
 					)}
 				</div>
 
-				{ErrorMsg ? (
+				{errorMsg ? (
 					<Alert variant="destructive">
 						<AlertTitle>Invalid PLZ</AlertTitle>
-						<AlertDescription>{ErrorMsg}</AlertDescription>
+						<AlertDescription>{errorMsg}</AlertDescription>
 					</Alert>
 				) : null}
 
-				{/* <div className="mt-auto flex justify-center  ">
-					<Button className="h-11 w-md px-6 text-base bg-gray-900 text-white font-bold">
+				<div className="mt-auto flex justify-center">
+					<Button
+						variant="outline"
+						className="h-11 w-56 px-6 font-bold text-base"
+						onClick={handleValidatePair}
+					>
 						Validate
 					</Button>
-				</div> */}
+				</div>
 			</section>
+
+			{isResultModalOpen ? (
+				<div className="fixed inset-0 z-100! flex items-center justify-center p-4">
+					<div className="w-full max-w-md rounded-xl border border-border bg-white p-6 text-card-foreground shadow-lg">
+						<h2 className="text-xl font-semibold">
+							{isValidPair ? (
+								<a className="text-green-500">Valid Match</a>
+							) : (
+								<a className="text-red-500">Invalid Match</a>
+							)}
+						</h2>
+						<p className="mt-2 text-base">{validationMsg}</p>
+						<div className="mt-5 flex justify-end">
+							<Button
+								className="bg-red-600 text-white hover:bg-red-700"
+								variant="destructive"
+								onClick={() => setIsResultModalOpen(false)}
+							>
+								Close
+							</Button>
+						</div>
+					</div>
+				</div>
+			) : null}
 		</main>
 	);
 }

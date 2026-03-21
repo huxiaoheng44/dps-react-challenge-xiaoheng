@@ -66,3 +66,26 @@ export async function lookupByPostalCode(
 		.map((item: { name: string }) => item.name)
 		.filter(Boolean);
 }
+
+export async function validateLocalityAndPostalCode(
+	locality: string,
+	postalCode: string,
+): Promise<boolean> {
+	const trimmedLocality = locality.trim();
+	const trimmedPostalCode = postalCode.trim();
+
+	if (!trimmedLocality || !trimmedPostalCode) {
+		return false;
+	}
+
+	const response = await fetch(
+		`${BASE_URL}?name=${encodeURIComponent(trimmedLocality)}&postalCode=${encodeURIComponent(trimmedPostalCode)}&page=1&pageSize=1`,
+	);
+
+	if (!response.ok) {
+		throw new Error(`OpenPLZ request failed: ${response.status}`);
+	}
+
+	const results = await response.json();
+	return Array.isArray(results) && results.length > 0;
+}
