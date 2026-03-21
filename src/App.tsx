@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,13 +10,28 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import { lookupByLocality } from './lib/openplz';
 
 function App() {
 	const [locality, setLocality] = useState('');
 	const [postalCode, setPostalCode] = useState('');
+	const [postalCodeOptions, setPostalCodeOptions] = useState<string[]>([]);
 
-	const showPostalCodeSelect = locality.trim().toLowerCase() === 'test';
+	const showPostalCodeSelect = postalCodeOptions.length > 0;
 	const showError = postalCode.length >= 5 && !/^\d{5}$/.test(postalCode);
+
+	useEffect(() => {
+		const fetchPostalCodes = async () => {
+			if (locality.trim()) {
+				const codes = await lookupByLocality(locality.trim());
+				setPostalCodeOptions(codes);
+			} else {
+				setPostalCodeOptions([]);
+			}
+		};
+
+		fetchPostalCodes();
+	}, [locality]);
 
 	return (
 		<main className="flex min-h-screen w-full items-center justify-center bg-accent/20 px-4 py-10 font-bold">
@@ -54,9 +69,11 @@ function App() {
 								<SelectValue placeholder="Select PLZ" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="10115">10115</SelectItem>
-								<SelectItem value="10117">10117</SelectItem>
-								<SelectItem value="10119">10119</SelectItem>
+								{postalCodeOptions.map((code) => (
+									<SelectItem key={code} value={code}>
+										{code}
+									</SelectItem>
+								))}
 							</SelectContent>
 						</Select>
 					) : (
@@ -81,11 +98,11 @@ function App() {
 					</Alert>
 				) : null}
 
-				<div className="mt-auto flex justify-center  ">
+				{/* <div className="mt-auto flex justify-center  ">
 					<Button className="h-11 w-md px-6 text-base bg-gray-900 text-white font-bold">
 						Validate
 					</Button>
-				</div>
+				</div> */}
 			</section>
 		</main>
 	);
