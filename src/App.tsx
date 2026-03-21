@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -21,16 +20,31 @@ function App() {
 	const showError = postalCode.length >= 5 && !/^\d{5}$/.test(postalCode);
 
 	useEffect(() => {
-		const fetchPostalCodes = async () => {
-			if (locality.trim()) {
-				const codes = await lookupByLocality(locality.trim());
-				setPostalCodeOptions(codes);
-			} else {
+		const trimmedLocality = locality.trim();
+		const timeoutId = window.setTimeout(() => {
+			if (!trimmedLocality) {
 				setPostalCodeOptions([]);
+				setPostalCode('');
+				return;
 			}
-		};
 
-		fetchPostalCodes();
+			void (async () => {
+				try {
+					const codes = await lookupByLocality(trimmedLocality);
+					setPostalCodeOptions(codes);
+
+					if (codes.length === 1) {
+						setPostalCode(codes[0]);
+					}
+				} catch {
+					setPostalCodeOptions([]);
+				}
+			})();
+		}, 1000);
+
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
 	}, [locality]);
 
 	return (
@@ -68,7 +82,10 @@ function App() {
 							>
 								<SelectValue placeholder="Select PLZ" />
 							</SelectTrigger>
-							<SelectContent>
+							<SelectContent
+								position="popper"
+								className="z-100! max-h-40! overflow-y-auto bg-white text-black"
+							>
 								{postalCodeOptions.map((code) => (
 									<SelectItem key={code} value={code}>
 										{code}
@@ -80,7 +97,6 @@ function App() {
 						<Input
 							id="postal-code"
 							className="h-11 border-input bg-card text-base"
-							placeholder="e.g. 80331"
 							value={postalCode}
 							onChange={(event) =>
 								setPostalCode(event.target.value)
