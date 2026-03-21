@@ -44,3 +44,25 @@ export async function lookupByLocality(locality: string): Promise<string[]> {
 
 	return [...new Set(allPostalCodes.filter(Boolean))];
 }
+
+export async function lookupByPostalCode(
+	postalCode: string,
+): Promise<string[]> {
+	const query = postalCode.trim();
+	if (!query) {
+		return [];
+	}
+
+	const response = await fetch(
+		`${BASE_URL}?postalCode=${encodeURIComponent(query)}`,
+	);
+
+	if (!response.ok) {
+		throw new Error(`OpenPLZ request failed: ${response.status}`);
+	}
+
+	const localities = await response.json();
+	return localities
+		.map((item: { name: string }) => item.name)
+		.filter(Boolean);
+}

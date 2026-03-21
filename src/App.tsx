@@ -9,15 +9,15 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { lookupByLocality } from './lib/openplz';
+import { lookupByLocality, lookupByPostalCode } from './lib/openplz';
 
 function App() {
 	const [locality, setLocality] = useState('');
 	const [postalCode, setPostalCode] = useState('');
 	const [postalCodeOptions, setPostalCodeOptions] = useState<string[]>([]);
+	const [ErrorMsg, setErrorMsg] = useState('');
 
 	const showPostalCodeSelect = postalCodeOptions.length > 0;
-	const showError = postalCode.length >= 5 && !/^\d{5}$/.test(postalCode);
 
 	useEffect(() => {
 		const trimmedLocality = locality.trim();
@@ -46,6 +46,38 @@ function App() {
 			window.clearTimeout(timeoutId);
 		};
 	}, [locality]);
+
+	useEffect(() => {
+		const trimmedPostalCode = postalCode.trim();
+
+		if (!trimmedPostalCode) {
+			setErrorMsg('');
+			return;
+		}
+
+		if (!/^\d{5}$/.test(trimmedPostalCode)) {
+			setErrorMsg(
+				trimmedPostalCode.length > 5
+					? 'Please enter a valid 5-digit PLZ.'
+					: '',
+			);
+			return;
+		}
+
+		setErrorMsg('');
+		void (async () => {
+			try {
+				const localities = await lookupByPostalCode(trimmedPostalCode);
+				if (localities.length >= 1) {
+					setLocality(localities[0]);
+				} else if (localities.length === 0) {
+					setErrorMsg('No locality found for this PLZ.');
+				}
+			} catch {
+				setErrorMsg('Failed to fetch localities for the provided PLZ.');
+			}
+		})();
+	}, [postalCode]);
 
 	return (
 		<main className="flex min-h-screen w-full items-center justify-center bg-accent/20 px-4 py-10 font-bold">
@@ -97,20 +129,23 @@ function App() {
 						<Input
 							id="postal-code"
 							className="h-11 border-input bg-card text-base"
+							inputMode="numeric"
+							maxLength={5}
 							value={postalCode}
-							onChange={(event) =>
-								setPostalCode(event.target.value)
-							}
+							onChange={(event) => {
+								const digitsOnly = event.target.value
+									.replace(/\D/g, '')
+									.slice(0, 5);
+								setPostalCode(digitsOnly);
+							}}
 						/>
 					)}
 				</div>
 
-				{showError ? (
+				{ErrorMsg ? (
 					<Alert variant="destructive">
 						<AlertTitle>Invalid PLZ</AlertTitle>
-						<AlertDescription>
-							Please enter exactly 5 digits.
-						</AlertDescription>
+						<AlertDescription>{ErrorMsg}</AlertDescription>
 					</Alert>
 				) : null}
 
